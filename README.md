@@ -5,6 +5,9 @@ This PowerShell script takes a HAR (HTTP Archive) file as input and removes sens
 ## Usage
 ```
 Sanitize HAR
-PS C:\> .\Invoke-HARmless.ps1 -FilePath HarToSanitize.har
+PS C:\> .\Invoke-HARmless.ps1
+
+With parameters
+PS C:\> .\Invoke-HARmless.ps1 -HARFile ExampleFile.har -RedactWithWord REDACTED
 ```
 ![HARmless](HARmless.png)
