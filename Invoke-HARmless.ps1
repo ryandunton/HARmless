@@ -7,18 +7,21 @@
     are specified in a hashtable. The script then reads the HAR file, removes the sensitive data from the specified
     headers, and saves the sanitized HAR file with a new name.
 .NOTES
-    Version: 20231108.01
+    Version: 20231108.02
     Author: Ryan Dunton https://github.com/ryandunton
 .EXAMPLE
     Sanitize HAR
-    PS C:\> .\Invoke-HARmless.ps1 -FilePath HarToSanitize.har
+    PS C:\> .\Invoke-HARmless.ps1 -HARFile HarToSanitize.har -RedactWithWord "REDACTED"
 #>
 
 [CmdletBinding()]
 param (
     [Parameter()]
     [string]
-    $FilePath
+    $HARFile,
+    [Parameter()]
+    [string]
+    $RedactWithWord = "REDACTED"
 )
 
 begin {
@@ -31,36 +34,50 @@ begin {
 
 process {
     function Show-Banner {
-        $Banner = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String("DQrilojilojilZcgIOKWiOKWiOKVlyDilojilojilojilojilojilZcg4paI4paI4paI4paI4paI4paI4pWXIOKWiOKWiOKWiOKVlyAgIOKWiOKWiOKWiOKVl+KWiOKWiOKVlyAgICAg4paI4paI4paI4paI4paI4paI4paI4pWX4paI4paI4paI4paI4paI4paI4paI4pWX4paI4paI4paI4paI4paI4paI4paI4pWXDQrilojilojilZEgIOKWiOKWiOKVkeKWiOKWiOKVlOKVkOKVkOKWiOKWiOKVl+KWiOKWiOKVlOKVkOKVkOKWiOKWiOKVl+KWiOKWiOKWiOKWiOKVlyDilojilojilojilojilZHilojilojilZEgICAgIOKWiOKWiOKVlOKVkOKVkOKVkOKVkOKVneKWiOKWiOKVlOKVkOKVkOKVkOKVkOKVneKWiOKWiOKVlOKVkOKVkOKVkOKVkOKVnQ0K4paI4paI4paI4paI4paI4paI4paI4pWR4paI4paI4paI4paI4paI4paI4paI4pWR4paI4paI4paI4paI4paI4paI4pWU4pWd4paI4paI4pWU4paI4paI4paI4paI4pWU4paI4paI4pWR4paI4paI4pWRICAgICDilojilojilojilojilojilZcgIOKWiOKWiOKWiOKWiOKWiOKWiOKWiOKVl+KWiOKWiOKWiOKWiOKWiOKWiOKWiOKVlw0K4paI4paI4pWU4pWQ4pWQ4paI4paI4pWR4paI4paI4pWU4pWQ4pWQ4paI4paI4pWR4paI4paI4pWU4pWQ4pWQ4paI4paI4pWX4paI4paI4pWR4pWa4paI4paI4pWU4pWd4paI4paI4pWR4paI4paI4pWRICAgICDilojilojilZTilZDilZDilZ0gIOKVmuKVkOKVkOKVkOKVkOKWiOKWiOKVkeKVmuKVkOKVkOKVkOKVkOKWiOKWiOKVkQ0K4paI4paI4pWRICDilojilojilZHilojilojilZEgIOKWiOKWiOKVkeKWiOKWiOKVkSAg4paI4paI4pWR4paI4paI4pWRIOKVmuKVkOKVnSDilojilojilZHilojilojilojilojilojilojilojilZfilojilojilojilojilojilojilojilZfilojilojilojilojilojilojilojilZHilojilojilojilojilojilojilojilZENCuKVmuKVkOKVnSAg4pWa4pWQ4pWd4pWa4pWQ4pWdICDilZrilZDilZ3ilZrilZDilZ0gIOKVmuKVkOKVneKVmuKVkOKVnSAgICAg4pWa4pWQ4pWd4pWa4pWQ4pWQ4pWQ4pWQ4pWQ4pWQ4pWd4pWa4pWQ4pWQ4pWQ4pWQ4pWQ4pWQ4pWd4pWa4pWQ4pWQ4pWQ4pWQ4pWQ4pWQ4pWd4pWa4pWQ4pWQ4pWQ4pWQ4pWQ4pWQ4pWdDQogICAgIlJlbW92aW5nIGJlYXJlciB0b2tlbnMgYW5kIGNvb2tpZXMsIG9uZSBieXRlIGF0IGEgdGltZSEiDQogICAgICAgICAgICAgICAgIGh0dHBzOi8vZ2l0aHViLmNvbS9yeWFuZHVudG9uDQo="))
-        Write-Host $Banner
+        Write-Host -ForegroundColor Blue "
+        ██╗  ██╗ █████╗ ██████╗ ███╗   ███╗██╗     ███████╗███████╗███████╗
+        ██║  ██║██╔══██╗██╔══██╗████╗ ████║██║     ██╔════╝██╔════╝██╔════╝
+        ███████║███████║██████╔╝██╔████╔██║██║     █████╗  ███████╗███████╗
+        ██╔══██║██╔══██║██╔══██╗██║╚██╔╝██║██║     ██╔══╝  ╚════██║╚════██║
+        ██║  ██║██║  ██║██║  ██║██║ ╚═╝ ██║███████╗███████╗███████║███████║
+        ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝     ╚═╝╚══════╝╚══════╝╚══════╝╚══════╝"
+        Write-Host "             `"Removing bearer tokens and cookies, one byte at a time!`"" -ForegroundColor Red
+        Write-Host "                      https://github.com/ryandunton/HARmless
+        "
     }
     function Remove-SensitiveDataFromHar {
         param (
             [Parameter(Mandatory=$true)]
             [string]
-            $FilePath,
+            $HARFile,
             [Parameter(Mandatory=$true)]
             [hashtable]
-            $HeadersToRedact
+            $HeadersToRedact,
+            [Parameter()]
+            [string]
+            $RedactWithWord
         )
-        $HarContents = Get-Content -Path $FilePath -Raw | ConvertFrom-Json
+        Write-Host "[+] Sanitizing..." -ForegroundColor Green
+        $HarContents = Get-Content -Path $HARFile -Raw | ConvertFrom-Json
         foreach ($HarContent in $HarContents.log.entries) {
             foreach ($Header in $HarContent.request.headers) {
                 if ($HeadersToRedact.ContainsKey($Header.name)) {
-                    $Header.value = "REDACTED"
-                    Write-Host "[-] Redacted $($Header.name) header in $($HarContent.request.url.split('?')[0])"
+                    $Header.value = "$RedactWithWord"
+                    Write-Host "[-] $($Header.name) header in $($HarContent.request.url.split('?')[0])"
                 }
             }
         }
-        Write-Host "[*] Saving sanitized file to $($FilePath.Replace(".har", "_sanitized.har"))"
-        $HarContents | ConvertTo-Json -Depth 100 | Out-File -FilePath $($FilePath.Replace(".har", "_sanitized.har"))
+        Write-Host "[*] Saving sanitized file to $($HARFile.Replace(".har", "_sanitized.har"))" -ForegroundColor Yellow
+        $HarContents | ConvertTo-Json -Depth 100 | Out-File -FilePath $($HARFile.Replace(".har", "_sanitized.har"))
     }
     Show-Banner
-    if (!($FilePath)) {$FilePath = Read-Host "[*] Please enter the path to the HAR file to sanitize"}
-    Write-Host "[+] Processing HAR file: $FilePath"
-    Remove-SensitiveDataFromHar -FilePath $FilePath -HeadersToRedact $HeadersToRedact
+    While (!(Test-Path -Path $HARFile)) {$HARFile = $(Write-Host "[*] Please enter the path to the HAR file to sanitize: " -ForegroundColor Yellow -NoNewline;Read-Host)}
+    Write-Host "[+] Processing HAR file..." -ForegroundColor Green
+    Write-Host "[-] Location: $HARFile"
+    Write-Host "[-] Redacting headers `'$($HeadersToRedact.Keys -Join(', '))`' with `'$RedactWithWord`'"
+    Remove-SensitiveDataFromHar -HARFile $HARFile -HeadersToRedact $HeadersToRedact -RedactWithWord $RedactWithWord
 }
 
 end {
-    Write-host "[+] Done!"
+    Write-host "[+] Done!" -ForegroundColor Green
 }
