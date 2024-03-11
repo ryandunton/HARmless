@@ -10,6 +10,9 @@
 .NOTES
     Version: 20231123.01
     Author: Ryan Dunton https://github.com/ryandunton
+	
+	Version: 20240308.01
+    Author: Przemysław Wierzbicki
 .EXAMPLE
     Sanitize HAR
     PS C:\> .\Invoke-HARmless.ps1 -SessionFile HarToSanitize.har -RedactWithWord "REDACTED"
@@ -32,6 +35,11 @@ begin {
     $HeadersToRedact = @{
         "Authorization" = $true
         "Cookie" = $true
+		"X-Device-Fingerprint" = $true
+		"location" = $true
+		"fromLoginToken" = $true
+		"serviceToken" = $true
+		"v-appId" = $true
     }
 
     if ($PSVersionTable.PSVersion.Major -lt 6) {Write-Warning "Please use PowerShell v6 or above to avoid HAR formatting issues."}
@@ -71,7 +79,38 @@ process {
                     Write-Host "[-] $($Header.name) header in $($HarContent.request.url.split('?')[0])"
                 }
             }
+
+           if ($HarContent.request.postData -ne $null) {
+            $sensitiveFields = @("SAMLResponse", "SAMLRequest", "SignatureValue", "token", "password")
+
+            foreach ($param in $HarContent.request.postData.params) {
+                if ($sensitiveFields -contains $param.name) {
+                    $param.value = $RedactWithWord
+					#$param.text = $RedactWithWord
+                    Write-Host "[-] Replaced 'value' and 'text' $($param.name) field in 'post-Data' of $($HarContent.request.url.split('?')[0]) with '$RedactWithWord'"
+				}
+			}
+			
+			if ($sensitiveFields -contains "password" -and $HarContent.request.postData.text -like '*"password"*') {
+                $HarContent.request.postData.text = $RedactWithWord
+                Write-Host "[-] Replaced 'text' field 'password' in 'post-Data' of $($HarContent.request.url.split('?')[0]) with '$RedactWithWord'"
+            }
+            if ($sensitiveFields -contains "SAMLResponse") {
+                $HarContent.request.postData.text = $RedactWithWord
+                Write-Host "[-] Replaced 'text' field 'SAMLResponse' in 'post-Data' of $($HarContent.request.url.split('?')[0]) with '$RedactWithWord'"
+            }
+            if ($sensitiveFields -contains "SAMLRequest") {
+                $HarContent.request.postData.text = $RedactWithWord
+                Write-Host "[-] Replaced 'text' field 'SAMLRequest' in 'post-Data' of $($HarContent.request.url.split('?')[0]) with '$RedactWithWord'"
+            }
         }
+			
+		# Remove the "token=" from the URL
+        if ($HarContent.request.url -like '*token=*') {
+            $HarContent.request.url = $RedactWithWord
+            Write-Host "[-] Replaced 'token=' from 'url' in $($HarContent.request.url.split('?')[0])"
+        }
+    }
         Write-Host "[*] Saving sanitized file to $($HARFile.Replace(".har", "_sanitized.har"))" -ForegroundColor Yellow
         $HarContents | ConvertTo-Json -Depth 100 | Out-File -FilePath $($HARFile.Replace(".har", "_sanitized.har"))
     }
